@@ -1,9 +1,12 @@
+import React from "react";
+import { BrowserRouter as Router } from "react-router-dom";
+import AppRouter from "./router/AppRouter";
 
 function App() {
   return (
-    <>
-      <h1 className='bg-red-700 text-8xl'> hellow world</h1>
-    </>
+   <Router>
+      <AppRouter />
+    </Router>
   )
 }
 
