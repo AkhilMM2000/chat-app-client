@@ -9,9 +9,11 @@ const MainLayout: React.FC = () => {
       <Navbar />
 
      
-      <main className="flex-1 bg-gray-50 p-4">
-        <Outlet />
-      </main>
+  <main className="flex-1 bg-gray-50 p-4 pt-16">
+  <Outlet />
+</main>
+
+
     </div>
   );
 };

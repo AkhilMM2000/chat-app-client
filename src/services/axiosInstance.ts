@@ -1,7 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
 });
 
@@ -34,13 +34,13 @@ axiosInstance.interceptors.response.use(
         );
 
         const newAuthtoken = res.data.accessToken;
-        localStorage.setItem("Authtoken", newAuthtoken);
+        localStorage.setItem("accessToken", newAuthtoken);
         originalRequest.headers.Authorization = `Bearer ${newAuthtoken}`;
 
         return axiosInstance(originalRequest); // retry original request
       } catch (refreshError) {
         console.error("🔁 Refresh token failed:", refreshError);
-        localStorage.removeItem("Authtoken");
+        localStorage.removeItem("accessToken");
         window.location.href = "/";
         return Promise.reject(refreshError);
       }

@@ -1,14 +1,25 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {useForm}from "react-hook-form";
 import {toast}from "react-hot-toast";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import type { AuthForm } from "../types/Auth";
+import { login, Register } from "../services/authService";
+import { useNavigate } from "react-router-dom";
+import { getCurrentUser } from "../utils/auth";
+import GoogleAuthButton from "../components/auth/GoogleAuthButton";
 
 const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-
+const navigate=useNavigate();
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      // user already logged in — redirect to /room and replace history
+      navigate("/room", { replace: true });
+    }
+  }, [navigate]);
   const {
     register,
     handleSubmit,
@@ -20,13 +31,24 @@ const AuthPage: React.FC = () => {
     setLoading(true);
     try {
       if (isLogin) {
-        // 👉 call login API here
         console.log("Login data:", data);
-        toast.success("Login successful!");
+
+  const res = await login(data); 
+ const {
+  accessToken: jwt,
+  name,
+} = res.data;
+
+ localStorage.setItem("accessToken", jwt);
+  navigate("/room", { replace: true });
+  toast.success(`Welcome back, ${name}! 🎉`);
+  
       } else {
-        // 👉 call register API here
+        
         console.log("Register data:", data);
+    await Register(data);
         toast.success("Account created!");
+      navigate("/room", { replace: true });
       }
       reset();
     } catch (error: any) {
@@ -113,19 +135,7 @@ const AuthPage: React.FC = () => {
     </div>
 
     {/* Google login/register button */}
-    <Button
-      type="button"
-      fullWidth
-      className="bg-white text-gray-700 font-medium border border-gray-300 shadow-sm hover:bg-gray-50 flex items-center justify-center gap-2"
-      onClick={() => toast("Google Auth clicked")}
-    >
-      <img
-        src="https://www.svgrepo.com/show/475656/google-color.svg"
-        alt="Google"
-        className="w-5 h-5"
-      />
-      Continue with Google
-    </Button>
+      <GoogleAuthButton />
 
     {/* Switch between Login & Register */}
     <p className="text-center text-gray-600 mt-6">
