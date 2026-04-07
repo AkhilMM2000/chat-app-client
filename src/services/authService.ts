@@ -5,6 +5,13 @@ import axios from "axios";
 import type { Login } from "../types/Login";
 
 export const Register = (data: AuthForm) => axios.post(ENDPOINTS.AUTH.REGISTER, data);
+
+export const verifyOtp = (email: string, otp: string) => 
+  axios.post(ENDPOINTS.AUTH.VERIFY_OTP, { email, otp });
+
+export const resendOtp = (email: string) => 
+  axios.post(ENDPOINTS.AUTH.RESEND_OTP, { email });
+
 export const login = (data: AuthForm) =>
   axios.post<Login>(ENDPOINTS.AUTH.LOGIN, data, {
     withCredentials: true,
@@ -25,3 +32,4 @@ export const logout = async () => {
     };
   }
 };
+

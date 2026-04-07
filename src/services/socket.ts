@@ -10,11 +10,11 @@ export const initSocket = (accessToken: string) => {
   });
 
   // handle expired token
-  socket.on("connect_error", async (err: any) => {
+  socket.on("connect_error", async (err: Error & { type?: string; message?: string }) => {
     if (err.type === "TOKEN_EXPIRED") {
       try {
         // 1. refresh
-        const { data } = await axios.post<{accessToken:string}>(`${import.meta.env.VITE_API_URL}/auth/refresh`, {}, { withCredentials: true });
+        const { data } = await axios.post<{accessToken:string}>(`${import.meta.env.VITE_API_URL}/auth/refresh-token`, {}, { withCredentials: true });
 
         // 2. disconnect old socket
         socket.disconnect();
