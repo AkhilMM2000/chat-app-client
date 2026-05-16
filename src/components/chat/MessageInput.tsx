@@ -1,18 +1,18 @@
 import React, { useRef, useState, useEffect } from "react";
 import axiosInstance from "../../services/axiosInstance";
 import EmojiPicker, { Theme, type EmojiClickData } from "emoji-picker-react";
-import { Smile, Image as ImageIcon, Send, X, Paperclip, ShieldCheck, Sparkles } from "lucide-react";
+import { Smile, Image as ImageIcon, Send, X, Paperclip, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface MessageInputProps {
-  roomId: string;
+
   onSendMessage: (data: { content: string; type: string; mediaUrl: string | null }) => void;
   onTypingStart: () => void;
   onTypingStop: () => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
-  roomId,
+
   onSendMessage,
   onTypingStart,
   onTypingStop,

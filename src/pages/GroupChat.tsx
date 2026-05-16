@@ -324,7 +324,6 @@ useEffect(() => {
         </div>
 
         <MessageInput 
-          roomId={roomId || ""}
           onSendMessage={handleSendMessage}
           onTypingStart={handleTypingStart}
           onTypingStop={handleTypingStop}
