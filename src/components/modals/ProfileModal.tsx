@@ -49,9 +49,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onUpdate }
       }
 
       // 3. Update User in Backend
-      await axiosInstance.patch("/users/profile", {
+      const { data: updateResponse } = await axiosInstance.patch("/users/profile", {
         profilePic: finalProfilePic,
       });
+
+      // 4. Update Local State and Tokens
+      if (updateResponse.accessToken) {
+        localStorage.setItem("accessToken", updateResponse.accessToken);
+      }
 
       // 4. Update Local State
       const updatedUser = { ...user, profilePic: finalProfilePic };
