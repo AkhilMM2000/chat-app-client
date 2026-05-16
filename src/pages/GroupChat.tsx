@@ -143,7 +143,9 @@ useEffect(() => {
   // Status & Presence
   socket.on("roomJoined", (data: { roomId: string; participants: any[]; onlineUsers: string[] }) => {
     setOnlineUsers(new Set(data.onlineUsers));
+    console.log('group chat opened ...................')
     if (data.participants) {
+      console.log("roomJoined participants from server:", data.participants);
       setParticipants(data.participants.map((p: any) => ({
         id: p.userId || p.id,
         name: p.name,
@@ -210,7 +212,7 @@ useEffect(() => {
       socket.off("USER_TYPING");
       socket.off("USER_PROFILE_UPDATED");
     };
-  }, [socket, roomId, currentUser]);
+  }, [socket, roomId]);
 
   const handleSendMessage = useCallback((data: { content: string; type: string; mediaUrl: string | null }) => {
     if (!socket || !roomId) return;

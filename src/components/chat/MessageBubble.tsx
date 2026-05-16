@@ -12,6 +12,7 @@ interface MessageBubbleProps {
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, isBot, isOnline }) => {
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -65,6 +66,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, i
 
           {msg.type === "image" && msg.mediaUrl ? (
             <div className="mb-3 overflow-hidden rounded-xl border border-white/10 shadow-inner">
+              
               <img 
                 src={msg.mediaUrl} 
                 alt="Shared media" 

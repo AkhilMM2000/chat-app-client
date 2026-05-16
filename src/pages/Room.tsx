@@ -53,7 +53,7 @@ const Room: React.FC = () => {
     }
   };
   const handleJoinRoom = () => {
-    console.log("handleJoinRoom clicked", { roomData, hasSocket: !!socket, connected: socket?.connected });
+   
     if (!roomData || !socket) {
       console.warn("Early return: missing roomData or socket", { roomData, socket });
       return;

@@ -130,6 +130,7 @@ export const MessageList: FC<MessageListProps> = ({
               data-is-seen={hasSeen}
               className="w-full"
             >
+            
               <MessageBubble
                 msg={msg}
                 isYou={isYou}

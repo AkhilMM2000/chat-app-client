@@ -16,7 +16,7 @@ export const useSocket = () => {
         auth: { token },
         withCredentials: true,
         autoConnect: true,
-        reconnection: false, 
+        reconnection: true, 
       });
 
       s.on("connect_error", async (err: any) => {
@@ -25,7 +25,7 @@ export const useSocket = () => {
           ["TOKEN_EXPIRED", "INVALID_TOKEN", "NO_TOKEN"].includes(err.message)
         ) {
           triedRefresh = true;
-          console.log(err,'err message')
+          
           try {
             const { data } = await axios.post<{accessToken:string}>(
               `${import.meta.env.VITE_API_URL}/auth/refresh-token`,

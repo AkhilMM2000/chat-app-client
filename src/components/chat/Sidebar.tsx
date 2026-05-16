@@ -18,7 +18,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ participants, onlineUsers, typingUsers, onLeave, isOpen, onClose }) => {
   const [user, setUser] = useState(getCurrentUser());
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-
+console.log(user?.profilePic,'check your profile')
   return (
     <>
       {/* Mobile Backdrop Overlay */}
