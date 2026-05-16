@@ -4,7 +4,8 @@ import { io, Socket } from "socket.io-client";
 let socket: Socket;
 
 export const initSocket = (accessToken: string) => {
-  socket = io("http://localhost:5000", {
+  const socketUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:5001";
+  socket = io(socketUrl, {
     auth: { token: accessToken },
     withCredentials: true,
   });
@@ -20,7 +21,8 @@ export const initSocket = (accessToken: string) => {
         socket.disconnect();
 
         // 3. create new socket with fresh token
-        socket = io("http://localhost:5000", {
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:5001";
+        socket = io(socketUrl, {
           auth: { token: data.accessToken },   
           withCredentials: true,
         });

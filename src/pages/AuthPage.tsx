@@ -65,6 +65,7 @@ const AuthPage: React.FC = () => {
         toast.success("Verification code sent to your email! 📧");
       }
     } catch (error: any) {
+      console.log(error,'sssssss')
       const errMessage = error.response?.data?.message || "Authentication failed";
       toast.error(errMessage);
     } finally {

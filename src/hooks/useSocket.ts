@@ -11,7 +11,8 @@ export const useSocket = () => {
     let triedRefresh = false;
 
     const connectSocket = (token: string) => {
-      const s = io("http://localhost:5000", {
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:5001";
+      const s = io(socketUrl, {
         auth: { token },
         withCredentials: true,
         autoConnect: true,
@@ -34,11 +35,9 @@ export const useSocket = () => {
         
             localStorage.setItem("accessToken", data.accessToken);
         
-            // reconnect with new token
-            s.disconnect();
-         
-            connectSocket(data.accessToken);
-          
+            // reconnect with new token on the exact same instance
+            s.auth = { token: data.accessToken };
+            s.connect();
           } catch {
             console.error("⚠️ Refresh failed → logging out");
             await logout();

@@ -1,78 +1,102 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import type { Message } from "../types/messages";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { fetchMessages } from "../services/messages";
 import { getCurrentUser } from "../utils/auth";
 import { useSocket } from "../hooks/useSocket";
 import { TypingIndicator } from "../components/chat/TypingIndicator";
-import axiosInstance from "../services/axiosInstance";
+import { MessageList } from "../components/chat/MessageList";
+import { MessageInput } from "../components/chat/MessageInput";
+import { Sidebar } from "../components/chat/Sidebar";
+import { fetchRoomById } from "../services/room";
+import type { Participant } from "../types/Room";
 
 
 const GroupChat:React.FC = () =>  {
   const socket = useSocket();
   const { roomId } = useParams<{ roomId: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState(""); // ✅ input state
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const currentUser = getCurrentUser();
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [onlineCount, setOnlineCount] = useState(0);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const typingTimeoutRef = useRef<any>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const navigate = useNavigate();
+  const [isLeaving, setIsLeaving] = useState(false);
+
+  // 🛡️ Navigation Lock: Prevent leaving via Back button
+  useEffect(() => {
+    // Push a dummy state to history to capture the first back button click
+    window.history.pushState(null, "", window.location.href);
+
+    const handlePopState = () => {
+      if (!isLeaving) {
+        // Force stay in the room
+        window.history.pushState(null, "", window.location.href);
+        toast.error("Please use the LEAVE button to exit safely! 🛡️", {
+          id: "nav-lock-toast",
+          icon: "🔒"
+        });
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [isLeaving]);
 
   useEffect(() => {
     if (!roomId) return;
 
-    const loadMessages = async () => {
+    const loadData = async () => {
       try {
-        const data = await fetchMessages(roomId, 50);
-        setMessages(data.messages);
-        if (data.messages.length < 50) setHasMore(false);
+        const [messagesData, roomData] = await Promise.all([
+          fetchMessages(roomId, 50),
+          fetchRoomById(roomId)
+        ]);
+        setMessages(messagesData.messages);
+        if (messagesData.messages.length < 50) setHasMore(false);
+        setParticipants(roomData.participants);
       } catch (err) {
-        console.error("Failed to fetch messages:", err);
+        console.error("Failed to fetch room data:", err);
       }
     };
 
-    loadMessages();
+    loadData();
   }, [roomId]);
 
-  const handleScroll = async () => {
-    if (!messagesContainerRef.current || !hasMore || isLoadingMore) return;
+  const handleLoadMore = async () => {
+    if (!messagesContainerRef.current || !hasMore || isLoadingMore || messages.length === 0) return;
     
-    // If scrolled to top
-    if (messagesContainerRef.current.scrollTop === 0) {
-      if (messages.length === 0) return;
-      setIsLoadingMore(true);
-      const oldestMessageId = messages[0].id; // The oldest message is first in the array
+    setIsLoadingMore(true);
+    const oldestMessageId = messages[0].id; 
+    
+    try {
+      const data = await fetchMessages(roomId!, 50, oldestMessageId);
       
-      try {
-        const data = await fetchMessages(roomId!, 50, oldestMessageId);
-        
-        // Retain scroll position
-        const previousScrollHeight = messagesContainerRef.current.scrollHeight;
-        
-        setMessages(prev => [...data.messages, ...prev]);
-        
-        if (data.messages.length < 50) setHasMore(false);
+      // Retain scroll position BEFORE updating state
+      const previousScrollHeight = messagesContainerRef.current.scrollHeight;
+      
+      setMessages(prev => [...data.messages, ...prev]);
+      
+      if (data.messages.length < 50) setHasMore(false);
 
-        // Adjust scroll position perfectly after DOM update
-        setTimeout(() => {
-          if (messagesContainerRef.current) {
-            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight - previousScrollHeight;
-          }
-        }, 0);
-        
-      } catch (e) {
-        console.error("Failed to fetch older messages:", e);
-      } finally {
-        setIsLoadingMore(false);
-      }
+      // Adjust scroll position perfectly after DOM update
+      // Using requestAnimationFrame for smoother adjustment
+      requestAnimationFrame(() => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight - previousScrollHeight;
+        }
+      });
+      
+    } catch (e) {
+      console.error("Failed to fetch older messages:", e);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 useEffect(() => {
@@ -95,286 +119,208 @@ useEffect(() => {
     setMessages(prev => [...prev, msg]);
   };
 
-  socket.on("messageSent", handleMessageSent);
-  socket.on("newMessage", handleNewMessage);
+    const handleMessagesSeen = (data: { roomId: string; messageIds: string[]; userId: string }) => {
+      setMessages(prev => prev.map(msg => {
+        if (data.messageIds.includes(msg.id)) {
+          const seenSet = new Set(msg.seenBy || []);
+          seenSet.add(data.userId);
+          const updatedSeenBy = Array.from(seenSet);
+          
+          // Only update state if the array has actually changed
+          if (updatedSeenBy.length !== (msg.seenBy?.length || 0)) {
+            return { ...msg, seenBy: updatedSeenBy };
+          }
+        }
+        return msg;
+      }));
+    };
+
+    socket.on("messageSent", handleMessageSent);
+    socket.on("messagesSeen", handleMessagesSeen);
+    socket.on("newMessage", handleNewMessage);
 
   // Status & Presence
+  socket.on("roomJoined", (data: { roomId: string; participants: any[]; onlineUsers: string[] }) => {
+    setOnlineUsers(new Set(data.onlineUsers));
+    if (data.participants) {
+      setParticipants(data.participants.map((p: any) => ({
+        id: p.userId || p.id,
+        name: p.name,
+        profilePic: p.profilePic
+      })));
+    }
+  });
+
+  socket.on("participantJoined", (data: { userId: string; name: string; profilePic?: string }) => {
+    setParticipants(prev => {
+      if (prev.find(p => p.id === data.userId)) return prev;
+      return [...prev, { id: data.userId, name: data.name, profilePic: data.profilePic }];
+    });
+    setOnlineUsers(prev => new Set(prev).add(data.userId));
+  });
+
+  socket.on("USER_PROFILE_UPDATED", (data: { userId: string; name: string; profilePic?: string }) => {
+    setParticipants(prev => prev.map(p => {
+      if (p.id === data.userId) {
+        return { ...p, name: data.name, profilePic: data.profilePic };
+      }
+      return p;
+    }));
+  });
+
+  socket.on("userLeft", (data: { userId: string; name: string }) => {
+    // Instantly remove from online set so their dot disappears
+    setOnlineUsers(prev => {
+      const next = new Set(prev);
+      next.delete(data.userId);
+      return next;
+    });
+  });
+
+  // Global connect/disconnect
   socket.on("USER_STATUS_CHANGE", (data: { userId: string; status: "online" | "offline"; onlineCount: number }) => {
     setOnlineCount(data.onlineCount);
-    setOnlineUsers(prev => {
-      const newSet = new Set(prev);
-      if (data.status === "online") newSet.add(data.userId);
-      else newSet.delete(data.userId);
-      return newSet;
-    });
+    // 💡 Performance Fix: We no longer update onlineUsers Set from the global broadcast.
+    // This prevents users on the dashboard from "flickering" back to online in this specific room.
   });
 
   // Typing Indicators
   socket.on("USER_TYPING", (data: { userId: string; name: string; status: "typing" | "idle" }) => {
     setTypingUsers(prev => {
+      const next = { ...prev };
       if (data.status === "typing") {
-        return prev.includes(data.name) ? prev : [...prev, data.name];
+        next[data.userId] = data.name;
       } else {
-        return prev.filter(name => name !== data.name);
+        delete next[data.userId];
       }
+      return next;
     });
   });
 
-  return () => {
-    socket.off("messageSent", handleMessageSent);
-    socket.off("newMessage", handleNewMessage);
-    socket.off("USER_STATUS_CHANGE");
-    socket.off("USER_TYPING");
-  };
-}, [socket, roomId]);
+    // 🧹 Detailed Cleanup
+    return () => {
+      socket.off("messageSent", handleMessageSent);
+      socket.off("newMessage", handleNewMessage);
+      socket.off("messagesSeen", handleMessagesSeen);
+      socket.off("roomJoined");
+      socket.off("participantJoined");
+      socket.off("userLeft");
+      socket.off("USER_STATUS_CHANGE");
+      socket.off("USER_TYPING");
+      socket.off("USER_PROFILE_UPDATED");
+    };
+  }, [socket, roomId, currentUser]);
 
-const handleTyping = () => {
-  if (!socket || !roomId) return;
-
-  socket.emit("TYPING_START", { roomId });
-
-  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-  typingTimeoutRef.current = setTimeout(() => {
-    socket.emit("TYPING_STOP", { roomId });
-  }, 3000);
-};
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
-  const uploadFile = async (file: File): Promise<string | null> => {
-    try {
-      setIsUploading(true);
-      // 1. Get presigned URL
-      const { data } = await axiosInstance.post("/chat/media/upload-url", {
-        fileName: file.name,
-        fileType: file.type,
-      });
-
-      // 2. Upload directly to S3
-      await fetch(data.uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type,
-        },
-        body: file,
-      });
-
-      return data.mediaUrl;
-    } catch (error) {
-      console.error("Upload failed", error);
-      return null;
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if ((!newMessage.trim() && !selectedFile) || !socket || !roomId) return;
-    
-    let mediaUrl = null;
-    let messageType = "text";
-
-    if (selectedFile) {
-      mediaUrl = await uploadFile(selectedFile);
-      if (!mediaUrl) return; // if upload fails
-
-      messageType = selectedFile.type.startsWith("image/") ? "image" : "file";
-      setSelectedFile(null); // Clear selected file
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-
+  const handleSendMessage = useCallback((data: { content: string; type: string; mediaUrl: string | null }) => {
+    if (!socket || !roomId) return;
     socket.emit("sendMessage", {
       roomId,
-      content: newMessage.trim() || (mediaUrl ? "Shared an image" : ""),
-      type: messageType,
-      mediaUrl: mediaUrl
+      ...data
+    });
+  }, [socket, roomId]);
+
+  const handleTypingStart = useCallback(() => {
+    if (!socket || !roomId) return;
+    socket.emit("TYPING_START", { roomId });
+  }, [socket, roomId]);
+
+  const handleTypingStop = useCallback(() => {
+    if (!socket || !roomId) return;
+    socket.emit("TYPING_STOP", { roomId });
+  }, [socket, roomId]);
+
+  const handleLeaveRoom = useCallback(() => {
+    if (!socket || !roomId || !currentUser) return;
+    
+    setIsLeaving(true);
+    
+    // Formal socket notification
+    socket.emit("leaveRoom", {
+      roomId,
+      userId: currentUser.id,
+      name: currentUser.name
     });
 
-    socket.emit("TYPING_STOP", { roomId });
-    setNewMessage(""); 
-  };
+    toast.success("Leaving room...");
+    
+    // Redirect to dashboard/rooms
+    setTimeout(() => {
+      navigate("/room");
+    }, 500);
+  }, [socket, roomId, currentUser, navigate]);
 
+  // 👁️ Mark as Seen: Debounced logic
+  const handleMarkAsSeen = useCallback((messageIds: string[]) => {
+    if (!socket || !roomId || !messageIds.length) return;
+    socket.emit("markAsSeen", { roomId, messageIds });
+  }, [socket, roomId]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  const typingNames = useMemo(() => Object.values(typingUsers), [typingUsers]);
+  const typingIdsSet = useMemo(() => new Set(Object.keys(typingUsers)), [typingUsers]);
 
 useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
   return (
-    <div className="flex flex-col h-screen bg-gray-950 text-white">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/70 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <span className="text-purple-400 text-xl font-bold">#</span>
-          <h2 className="text-lg font-semibold">{roomId?.substring(0, 8)}...</h2>
-          <div className="flex items-center gap-1.5 ml-3 px-2 py-0.5 bg-green-500/10 rounded-full border border-green-500/20">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
-            <span className="text-[11px] font-bold text-green-500 uppercase tracking-wider">{onlineCount} online</span>
-          </div>
-        </div>
-        <button className="p-2 hover:bg-gray-800 rounded-full">
-          <span className="text-gray-300">👥</span>
-        </button>
-      </div>
-<div 
-  ref={messagesContainerRef}
-  onScroll={handleScroll}
-  className="flex-1 p-6 overflow-y-auto space-y-6"
->
-  {isLoadingMore && (
-    <div className="text-center text-sm text-gray-500 py-2">Loading older messages...</div>
-  )}
-  {messages.map((msg) => {
-    const isYou = msg.senderId === currentUser?.id; 
-    const isBot = msg.senderId === "system_ai";
-    return (
-      <div
-        key={msg.id}
-        className={`flex items-start gap-3 ${
-          isYou ? "justify-end" : ""
-        }`}
-      >
-        {!isYou && (
-          <div className="relative">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg ${
-              isBot ? "bg-teal-600 border border-teal-400/50 text-xl" : "bg-purple-600"
-            }`}>
-              {isBot ? "🤖" : msg.senderName.charAt(0).toUpperCase()}
-            </div>
-            {!isBot && onlineUsers.has(msg.senderId) && (
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-gray-950 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.8)]"></span>
-            )}
-          </div>
-        )}
-        <div className={isYou ? "text-right" : ""}>
-          <div
-            className={`flex gap-2 items-baseline ${
-              isYou ? "justify-end" : ""
-            }`}
-          >
-            {!isYou && (
-              <p className="font-semibold text-sm">{msg.senderName}</p>
-            )}
-            <span className="text-xs text-gray-400">
-              {new Date(msg.createdAt).toLocaleTimeString()}
-            </span>
-            {isYou && (
-              <p className="font-semibold text-sm">You</p>
-            )}
-          </div>
-          <div
-            className={`mt-1 px-4 py-2 rounded-2xl inline-block ${
-              isYou
-                ? "bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg shadow-purple-500/20"
-                : isBot
-                ? "bg-gradient-to-br from-teal-500/10 to-teal-500/5 border border-teal-500/20 text-teal-50 shadow-lg shadow-teal-500/5"
-                : "bg-gray-800"
-            }`}
-          >
-            {msg.type === "image" && msg.mediaUrl ? (
-              <div className="mb-2">
-                <img 
-                  src={msg.mediaUrl} 
-                  alt="uploaded media" 
-                  className="max-w-[250px] md:max-w-xs rounded-xl shadow-md border border-white/10" 
-                  loading="lazy"
-                />
-              </div>
-            ) : null}
-            {msg.content}
-          </div>
-        </div>
-        {isYou && (
-          <div className="w-10 h-10 rounded-full bg-pink-600 flex items-center justify-center font-bold">
-            {msg.senderName.charAt(0).toUpperCase()}
-          </div>
-        )}
-      </div>
-    );
-  })}
-    <div ref={messagesEndRef} />
-</div>
-
-
-      {/* Typing Indicator */}
-      <div className="px-4 pb-2">
-        <TypingIndicator names={typingUsers} />
+    <div className="relative flex h-screen w-full bg-gray-950 text-white overflow-hidden font-sans selection:bg-purple-500/30">
+      {/* Mesh Background */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/20 blur-[120px] rounded-full animate-pulse" />
+        <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] bg-blue-600/10 blur-[120px] rounded-full" />
+        <div className="absolute -bottom-[10%] left-[20%] w-[45%] h-[45%] bg-indigo-600/15 blur-[120px] rounded-full" />
       </div>
 
-      {/* File Preview Area */}
-      {selectedFile && (
-        <div className="px-4 py-3 bg-gray-900 border-t border-gray-800 flex items-center justify-between animate-in slide-in-from-bottom-2 fade-in">
+      <Sidebar 
+        participants={participants}
+        onlineUsers={onlineUsers}
+        typingUsers={typingIdsSet}
+        onLeave={handleLeaveRoom}
+      />
+
+      <div className="flex-1 flex flex-col h-full min-w-0 relative z-10 bg-gray-950/20 backdrop-blur-[2px]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gray-900/60 backdrop-blur-xl h-[73px] shadow-sm shadow-black/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-800 flex items-center justify-center rounded-lg border border-gray-700">
-              {selectedFile.type.startsWith("image/") ? "🖼️" : "📄"}
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-purple-500/20 border border-white/10">
+              #
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-gray-200 truncate max-w-[200px]">{selectedFile.name}</span>
-              <span className="text-xs text-gray-500">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+              <h2 className="text-lg font-bold tracking-tight text-white/90">
+                {roomId?.substring(0, 8)}...
+              </h2>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/5 rounded-full border border-green-500/10 w-fit">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+                <span className="text-[10px] font-bold text-green-400 uppercase tracking-widest">{onlineCount} online</span>
+              </div>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              setSelectedFile(null);
-              if (fileInputRef.current) fileInputRef.current.value = "";
-            }}
-            className="text-gray-400 hover:text-red-400 transition-colors p-2"
-          >
-            ❌
+          <button className="p-2.5 hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/10 text-white/60 hover:text-white group">
+            <span className="group-hover:scale-110 transition-transform block">👥</span>
           </button>
         </div>
-      )}
 
-      {/* Input Box */}
-      <div className="p-4 border-t border-gray-800 flex items-center gap-3 bg-gray-900/90 backdrop-blur-xl shrink-0">
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          onChange={handleFileChange} 
-          className="hidden" 
-          accept="image/*,.pdf,.doc,.docx"
+        <MessageList
+          messages={messages}
+          currentUser={currentUser}
+          onlineUsers={onlineUsers}
+          isLoadingMore={isLoadingMore}
+          onLoadMore={handleLoadMore}
+          onMarkAsSeen={handleMarkAsSeen}
+          messagesContainerRef={messagesContainerRef}
+          messagesEndRef={messagesEndRef}
         />
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800 transition-colors active:scale-95"
-          disabled={isUploading}
-        >
-          📎
-        </button>
-        <div className="flex-1 relative">
-           <input
-            type="text"
-            placeholder={`Message #${roomId?.substring(0, 6)}...`}
-            value={newMessage}
-            disabled={isUploading}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              handleTyping();
-            }}
-            onKeyDown={handleKeyDown}
-            className="w-full bg-gray-800/80 text-white pl-4 pr-10 py-3 rounded-2xl outline-none placeholder-gray-500 focus:ring-2 focus:ring-purple-500/50 focus:bg-gray-800 transition-all shadow-inner"
-          />
+
+        {/* Typing Indicator */}
+        <div className="px-6 pb-2">
+          <TypingIndicator names={typingNames} />
         </div>
-        <button
-          onClick={handleSendMessage}
-          disabled={isUploading || (!newMessage.trim() && !selectedFile)}
-          className={`p-3 rounded-full transition-all duration-300 shadow-lg ${
-            isUploading 
-              ? "bg-gray-700 cursor-not-allowed animate-pulse" 
-              : "bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-purple-500/25 hover:scale-105 active:scale-95 text-white"
-          }`}
-        >
-          {isUploading ? "⏳" : "🚀"}
-        </button>
+
+        <MessageInput 
+          roomId={roomId || ""}
+          onSendMessage={handleSendMessage}
+          onTypingStart={handleTypingStart}
+          onTypingStop={handleTypingStop}
+        />
       </div>
     </div>
   );

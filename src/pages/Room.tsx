@@ -8,6 +8,8 @@ import type { GetRoomResponse } from "../types/Room";
 import toast from "react-hot-toast";
 import { useSocket } from "../hooks/useSocket";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { MessageSquare, Zap, Shield } from "lucide-react";
 
 const Room: React.FC = () => {
   const navigate = useNavigate();
@@ -51,14 +53,29 @@ const Room: React.FC = () => {
     }
   };
   const handleJoinRoom = () => {
-    if (!roomData || !socket) return;
+    console.log("handleJoinRoom clicked", { roomData, hasSocket: !!socket, connected: socket?.connected });
+    if (!roomData || !socket) {
+      console.warn("Early return: missing roomData or socket", { roomData, socket });
+      return;
+    }
+
+    if (!socket.connected) {
+      console.warn("Socket is NOT connected! Attempting to connect...");
+      socket.connect();
+    }
+
+    // Debug all incoming socket events to see if the server responds at all
+    socket.onAny((eventName, ...args) => {
+      console.log("Incoming socket event:", eventName, args);
+    });
 
     socket.emit("joinRoom", { roomId: roomData.roomId });
 
     socket.once("roomJoined", (data) => {
+      console.log("Room joined successfully!", data);
       toast.success(`🎉 Joined room ${data.roomId}`);
 
-      setIsModalOpen(false);
+      setIsOpen(false);
 
       navigate(`/chat/${data.roomId}`);
     });
@@ -69,69 +86,111 @@ const Room: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-indigo-100 via-purple-100 to-pink-100 pt-20">
-      <div className="max-w-lg mx-auto p-6 bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl">
-        <h1 className="text-3xl font-bold text-center text-indigo-700 mb-6">
-          Manage Chat Rooms
-        </h1>
+    <div className="py-24 px-6 relative overflow-hidden">
+      {/* Background Orbs for Depth */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/10 blur-[150px] rounded-full -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-600/10 blur-[150px] rounded-full translate-y-1/2 -translate-x-1/2" />
 
-        {/* Join Room */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2 text-gray-800">
-            Join a Room
-          </h2>
-          <input
-            type="text"
-            placeholder="🔑 Enter Room ID"
-            value={JoinroomId}
-            onChange={(e) => setJoinRoomId(e.target.value)}
-            className="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm"
-          />
-          <Button
-            label="Join Room"
-            disabled={JoinroomId.length < 14}
-            onClick={handlePreview}
-            className="w-full mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-md"
-          >
-            Join Room
-          </Button>
-        </div>
+      <div className="max-w-xl mx-auto relative z-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-900/40 backdrop-blur-3xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl shadow-black/40"
+        >
+          <div className="text-center mb-10">
+            <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic mb-2">
+              Mission <span className="text-purple-500">Control</span>
+            </h1>
+            <p className="text-gray-400 text-sm font-medium tracking-wide">Select or establish a secure frequency.</p>
+          </div>
 
-        <div className="relative flex items-center justify-center mb-6">
-          <span className="absolute px-3 bg-white/80 text-gray-600 text-sm font-medium rounded-lg">
-            OR
-          </span>
-          <div className="w-full border-t border-gray-300"></div>
-        </div>
+          {/* Join Room */}
+          <div className="space-y-4 mb-10 relative">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Frequency ID</label>
+              <div className="h-[1px] flex-1 bg-white/5 mx-4" />
+            </div>
+            <div className="relative group">
+              <input
+                type="text"
+                placeholder="Enter unique room frequency..."
+                value={JoinroomId}
+                onChange={(e) => setJoinRoomId(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 shadow-inner group-hover:border-white/20 transition-all font-mono text-sm tracking-wider"
+              />
+            </div>
+            <Button
+              label="SYNCHRONIZE"
+              disabled={JoinroomId.length < 14}
+              onClick={handlePreview}
+              className={`w-full py-4 rounded-2xl font-black tracking-widest text-xs uppercase shadow-xl transition-all active:scale-95 ${
+                JoinroomId.length >= 14 
+                ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-purple-500/40" 
+                : "bg-gray-800 text-gray-600 cursor-not-allowed border border-white/5"
+              }`}
+            >
+              INITIALIZE CONNECTION
+            </Button>
+          </div>
 
-        {/* Create Room */}
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-2 text-gray-800">
-            Create a Room
-          </h2>
-          <Button
-            label="Create Room"
-            disabled={loading}
-            onClick={handleCreateRoom}
-          >
-            {loading ? "Creating..." : "Create Room"}
-          </Button>
+          <div className="relative flex items-center justify-center my-12">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/5 opacity-50"></div>
+            </div>
+            <span className="relative z-10 px-6 py-1 bg-gray-900 text-[10px] font-black text-gray-400 uppercase tracking-[0.4em] rounded-full border border-white/5">
+              OR
+            </span>
+          </div>
 
-          {/* 🎉 Show modal when room is created */}
-          {roomId && (
-            <RoomCreatedModal
-              isOpen={isModalOpen}
-              onClose={() => setIsModalOpen(false)}
-              roomId={roomId}
+          {/* Create Room */}
+          <div className="text-center space-y-6">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 animate-pulse">
+                <Zap size={32} />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-white uppercase tracking-widest mb-1">Generate Frequency</h2>
+                <p className="text-[11px] text-gray-500 font-medium">Create a new private encrypted channel.</p>
+              </div>
+            </div>
+            
+            <Button
+              label={loading ? "Generating..." : "GENERATE ROOM"}
+              disabled={loading}
+              onClick={handleCreateRoom}
+              className="w-full py-5 bg-white text-black hover:bg-gray-100 font-black tracking-[0.2em] text-xs rounded-2xl shadow-2xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+              ) : (
+                <MessageSquare size={18} />
+              )}
+              {loading ? "PROCESSING..." : "ESTABLISH CHANNEL"}
+            </Button>
+
+            {/* 🎉 Modal Logic */}
+            {roomId && (
+              <RoomCreatedModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                roomId={roomId}
+              />
+            )}
+            <RoomPreviewModal
+              isOpen={isOpen}
+              onClose={() => setIsOpen(false)}
+              onJoin={handleJoinRoom}
+              roomName={`Channel ${roomData?.roomId?.substring(0, 8)}`}
+              participants={roomData?.participants || []}
             />
-          )}
-          <RoomPreviewModal
-            isOpen={isOpen}
-            onClose={() => setIsOpen(false)}
-            onJoin={handleJoinRoom}
-            roomName={`Room ${roomData?.roomId}`}
-            participants={roomData?.participants || []}
-          />
+          </div>
+        </motion.div>
+        
+        {/* Helper Footer Link */}
+        <div className="mt-8 text-center">
+          <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest flex items-center justify-center gap-2">
+            End-to-End Encryption Enabled <Shield size={10} className="text-teal-500" />
+          </p>
         </div>
       </div>
     </div>
