@@ -11,14 +11,32 @@ interface SidebarProps {
   onlineUsers: Set<string>;
   typingUsers: Set<string>;
   onLeave: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ participants, onlineUsers, typingUsers, onLeave }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ participants, onlineUsers, typingUsers, onLeave, isOpen, onClose }) => {
   const [user, setUser] = useState(getCurrentUser());
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   return (
-    <div className="hidden md:flex w-[320px] lg:w-[380px] flex-col border-r border-white/5 bg-gray-900/40 backdrop-blur-2xl shadow-2xl shrink-0 z-20">
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Sidebar Container */}
+      <div className={`
+        fixed md:relative inset-y-0 left-0 z-50 
+        w-[320px] lg:w-[380px] flex flex-col 
+        border-r border-white/5 bg-[#0f172a] md:bg-gray-900/40 backdrop-blur-2xl shadow-2xl shrink-0
+        transition-transform duration-300 ease-in-out
+        ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+      `}>
       <div className="flex items-center justify-between p-4 border-b border-white/5 h-[73px] bg-white/[0.02]">
         <h2 className="text-xl font-black tracking-tighter text-white uppercase italic">
           <span className="text-purple-500 mr-2">/</span>Room
@@ -77,5 +95,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ participants, onlineUsers, typ
         onUpdate={(updatedUser) => setUser(updatedUser)}
       />
     </div>
+    </>
   );
 };

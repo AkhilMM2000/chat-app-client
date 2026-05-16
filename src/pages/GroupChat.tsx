@@ -28,6 +28,7 @@ const GroupChat:React.FC = () =>  {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // 🛡️ Navigation Lock: Prevent leaving via Back button
   useEffect(() => {
@@ -275,6 +276,8 @@ useEffect(() => {
         onlineUsers={onlineUsers}
         typingUsers={typingIdsSet}
         onLeave={handleLeaveRoom}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       <div className="flex-1 flex flex-col h-full min-w-0 relative z-10 bg-gray-950/20 backdrop-blur-[2px]">
@@ -294,7 +297,10 @@ useEffect(() => {
               </div>
             </div>
           </div>
-          <button className="p-2.5 hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/10 text-white/60 hover:text-white group">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2.5 hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/10 text-white/60 hover:text-white group md:hidden"
+          >
             <span className="group-hover:scale-110 transition-transform block">👥</span>
           </button>
         </div>
