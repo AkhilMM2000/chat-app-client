@@ -86,14 +86,7 @@ const GroupChat:React.FC = () =>  {
       
       if (data.messages.length < 50) setHasMore(false);
 
-      // Adjust scroll position perfectly after DOM update
-      // Using requestAnimationFrame for smoother adjustment
-      requestAnimationFrame(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight - previousScrollHeight;
-        }
-      });
-      
+
     } catch (e) {
       console.error("Failed to fetch older messages:", e);
     } finally {

@@ -15,6 +15,7 @@ interface MessageListProps {
 }
 
 import { AnimatePresence } from "framer-motion";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 export const MessageList: FC<MessageListProps> = ({
   messages,
@@ -28,6 +29,12 @@ export const MessageList: FC<MessageListProps> = ({
   messagesEndRef,
 }) => {
   const topSentinelRef = React.useRef<HTMLDivElement | null>(null);
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => messagesContainerRef.current,
+    estimateSize: () => 80,
+  });
 
   // ♾️ Infinite Scroll Observer
   React.useEffect(() => {
@@ -115,32 +122,44 @@ export const MessageList: FC<MessageListProps> = ({
         </div>
       )}
 
-      <AnimatePresence initial={false}>
-        {messages.map((msg) => {
-          const isYou = msg.senderId === currentUser?.id;
-          const isBot = msg.senderId === "system_ai";
-          const isOnline = onlineUsers.has(msg.senderId);
-          const hasSeen = msg.seenBy?.includes(currentUser?.id || "");
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        <AnimatePresence initial={false}>
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const msg = messages[virtualItem.index];
+            const isYou = msg.senderId === currentUser?.id;
+            const isBot = msg.senderId === "system_ai";
+            const isOnline = onlineUsers.has(msg.senderId);
+            const hasSeen = msg.seenBy?.includes(currentUser?.id || "");
 
-          return (
-            <div 
-              key={msg.id} 
-              data-message-id={msg.id} 
-              data-sender-id={msg.senderId}
-              data-is-seen={hasSeen}
-              className="w-full"
-            >
-            
-              <MessageBubble
-                msg={msg}
-                isYou={isYou}
-                isBot={isBot}
-                isOnline={isOnline}
-              />
-            </div>
-          );
-        })}
-      </AnimatePresence>
+            return (
+              <div 
+                key={msg.id} 
+                data-message-id={msg.id} 
+                data-sender-id={msg.senderId}
+                data-is-seen={hasSeen}
+                className="w-full absolute top-0 left-0"
+                style={{
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+              
+                <MessageBubble
+                  msg={msg}
+                  isYou={isYou}
+                  isBot={isBot}
+                  isOnline={isOnline}
+                />
+              </div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
       <div ref={messagesEndRef} className="h-2" />
     </div>
   );
