@@ -79,8 +79,7 @@ const GroupChat:React.FC = () =>  {
     try {
       const data = await fetchMessages(roomId!, 50, oldestMessageId);
       
-      // Retain scroll position BEFORE updating state
-      const previousScrollHeight = messagesContainerRef.current.scrollHeight;
+   
       
       setMessages(prev => [...data.messages, ...prev]);
       
