@@ -131,10 +131,17 @@ export const MessageList: FC<MessageListProps> = ({
       >
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const msg = messages[virtualItem.index];
+            const previousMsg = virtualItem.index > 0 ? messages[virtualItem.index - 1] : null;
+            
             const isYou = msg.senderId === currentUser?.id;
             const isBot = msg.senderId === "system_ai";
             const isOnline = onlineUsers.has(msg.senderId);
             const hasSeen = msg.seenBy?.includes(currentUser?.id || "");
+            
+            // Group messages if they are from the same sender and sent within 5 minutes (300000ms)
+            const isGrouped = previousMsg !== null && 
+                              previousMsg.senderId === msg.senderId &&
+                              new Date(msg.createdAt).getTime() - new Date(previousMsg.createdAt).getTime() < 300000;
 
             return (
               <div 
@@ -144,7 +151,7 @@ export const MessageList: FC<MessageListProps> = ({
                 data-is-seen={hasSeen}
                 data-index={virtualItem.index}
                 ref={virtualizer.measureElement}
-                className="w-full absolute top-0 left-0 pb-6"
+                className={`w-full absolute top-0 left-0 ${isGrouped ? 'pb-1.5' : 'pb-6'}`}
                 style={{
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
@@ -155,7 +162,8 @@ export const MessageList: FC<MessageListProps> = ({
                   isYou={isYou}
                   isBot={isBot}
                   isOnline={isOnline}
-                  onMediaLoad={() => virtualizer.measure()}
+                  isGrouped={isGrouped}
+                  onMediaLoad={virtualizer.measure}
                 />
               </div>
             );

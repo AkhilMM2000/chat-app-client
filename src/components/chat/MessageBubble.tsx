@@ -9,12 +9,13 @@ interface MessageBubbleProps {
   isYou: boolean;
   isBot: boolean;
   isOnline: boolean;
+  isGrouped?: boolean;
   onMediaLoad?: () => void;
 }
 
 const animatedMessages = new Set<string>();
 
-export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, isBot, isOnline, onMediaLoad }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, isBot, isOnline, isGrouped, onMediaLoad }) => {
 
   const shouldAnimate = !animatedMessages.has(msg.id);
   
@@ -31,7 +32,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, i
         isYou ? "flex-row-reverse" : "flex-row"
       }`}
     >
-      <div className="flex-shrink-0 relative group">
+      <div className={`flex-shrink-0 relative group ${isGrouped ? 'invisible' : ''}`}>
         <Avatar 
           src={isBot ? undefined : msg.senderProfilePic} 
           name={isBot ? "AI" : msg.senderName} 
@@ -42,18 +43,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, i
       </div>
 
       <div className={`flex flex-col max-w-[80%] md:max-w-[70%] ${isYou ? "items-end" : "items-start"}`}>
-        <div className="flex items-center gap-2 mb-1 px-1">
-          {!isYou && (
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xs font-black uppercase tracking-widest ${isBot ? "text-teal-400" : "text-white/50"}`}>
-                {msg.senderName}
-              </span>
-              {isBot && <ShieldCheck size={12} className="text-teal-400 fill-teal-400/20" />}
-            </div>
-          )}
-          <span className="text-[10px] font-medium text-gray-600">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          {isYou && <span className="text-xs font-black text-purple-500/80 uppercase tracking-widest">YOU</span>}
-        </div>
+        {!isGrouped && (
+          <div className="flex items-center gap-2 mb-1 px-1">
+            {!isYou && (
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-black uppercase tracking-widest ${isBot ? "text-teal-400" : "text-white/50"}`}>
+                  {msg.senderName}
+                </span>
+                {isBot && <ShieldCheck size={12} className="text-teal-400 fill-teal-400/20" />}
+              </div>
+            )}
+            <span className="text-[10px] font-medium text-gray-600">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            {isYou && <span className="text-xs font-black text-purple-500/80 uppercase tracking-widest">YOU</span>}
+          </div>
+        )}
 
         <div
           className={`relative px-4 py-3 rounded-2xl shadow-2xl transition-all hover:shadow-black/40 ${
