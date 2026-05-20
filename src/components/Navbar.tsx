@@ -18,6 +18,7 @@ const Navbar: React.FC = () => {
     console.log(response,'response logot');
     if (response.success) {
       localStorage.removeItem("user");
+      localStorage.removeItem("accessToken");
       window.location.href = "/";
     }
   };
