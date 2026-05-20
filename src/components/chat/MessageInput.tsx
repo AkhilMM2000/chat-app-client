@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import axiosInstance from "../../services/axiosInstance";
 import EmojiPicker, { Theme, type EmojiClickData } from "emoji-picker-react";
-import { Smile, Image as ImageIcon, Send, X, Paperclip, ShieldCheck } from "lucide-react";
+import { Smile, Image as ImageIcon, Send, X, Paperclip, ShieldCheck, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface MessageInputProps {
@@ -88,6 +88,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setShowMentions(false);
     
     // Reset focus to input
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleAIButtonClick = () => {
+    if (!newMessage.includes("@assistant")) {
+      setNewMessage((prev) => prev + (prev.length > 0 && !prev.endsWith(" ") ? " " : "") + "@assistant ");
+    }
     setTimeout(() => {
       inputRef.current?.focus();
     }, 0);
@@ -304,6 +313,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           >
             <Smile size={20} />
           </button>
+          <button 
+            onClick={handleAIButtonClick}
+            className="text-teal-400 hover:text-teal-300 p-2.5 rounded-xl hover:bg-teal-500/10 transition-all active:scale-95"
+            disabled={isUploading}
+            title="Ask AI Assistant"
+          >
+            <Sparkles size={20} />
+          </button>
         </div>
 
         <div className="flex-1 relative group overflow-hidden">
@@ -320,7 +337,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <input
             ref={inputRef}
             type="text"
-            placeholder={isUploading ? "Uploading file..." : "Type @ or message..."}
+            placeholder={isUploading ? "Uploading file..." : "Type a message... (Click ✨ to ask AI)"}
             value={newMessage}
             disabled={isUploading}
             onChange={handleInputChange}
