@@ -79,13 +79,17 @@ const GroupChat:React.FC = () =>  {
     try {
       const data = await fetchMessages(roomId!, 50, oldestMessageId);
       
-   
+      const previousScrollHeight = messagesContainerRef.current.scrollHeight;
       
       setMessages(prev => [...data.messages, ...prev]);
       
       if (data.messages.length < 50) setHasMore(false);
 
-
+      requestAnimationFrame(() => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight - previousScrollHeight;
+        }
+      });
     } catch (e) {
       console.error("Failed to fetch older messages:", e);
     } finally {

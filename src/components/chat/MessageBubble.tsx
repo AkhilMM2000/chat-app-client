@@ -12,11 +12,19 @@ interface MessageBubbleProps {
   onMediaLoad?: () => void;
 }
 
+const animatedMessages = new Set<string>();
+
 export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, isBot, isOnline, onMediaLoad }) => {
+
+  const shouldAnimate = !animatedMessages.has(msg.id);
+  
+  React.useEffect(() => {
+    if (shouldAnimate) animatedMessages.add(msg.id);
+  }, [msg.id, shouldAnimate]);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      initial={shouldAnimate ? { opacity: 0, y: 10, scale: 0.95 } : false}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={`flex items-start gap-3 ${
@@ -66,7 +74,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, i
           )}
 
           {msg.type === "image" && msg.mediaUrl ? (
-            <div className="mb-3 overflow-hidden rounded-xl border border-white/10 shadow-inner">
+            <div className="mb-3 overflow-hidden rounded-xl border border-white/10 shadow-inner min-h-[200px] w-full max-w-[250px] bg-white/5 flex items-center justify-center">
               
               <img 
                 src={msg.mediaUrl} 
@@ -79,7 +87,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, i
           ) : null}
 
           <div className="flex items-center justify-between gap-4 mt-1">
-            <p className="text-sm shadow-sm leading-relaxed font-medium">
+            <p className="text-sm shadow-sm leading-relaxed font-medium break-words whitespace-pre-wrap">
               {msg.content}
             </p>
             

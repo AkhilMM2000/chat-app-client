@@ -14,7 +14,7 @@ interface MessageListProps {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
-import { AnimatePresence } from "framer-motion";
+
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 export const MessageList: FC<MessageListProps> = ({
@@ -129,7 +129,6 @@ export const MessageList: FC<MessageListProps> = ({
           position: 'relative',
         }}
       >
-        <AnimatePresence initial={false}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const msg = messages[virtualItem.index];
             const isYou = msg.senderId === currentUser?.id;
@@ -145,7 +144,7 @@ export const MessageList: FC<MessageListProps> = ({
                 data-is-seen={hasSeen}
                 data-index={virtualItem.index}
                 ref={virtualizer.measureElement}
-                className="w-full absolute top-0 left-0"
+                className="w-full absolute top-0 left-0 pb-6"
                 style={{
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
@@ -161,7 +160,6 @@ export const MessageList: FC<MessageListProps> = ({
               </div>
             );
           })}
-        </AnimatePresence>
       </div>
       <div ref={messagesEndRef} className="h-2" />
     </div>
