@@ -143,6 +143,8 @@ export const MessageList: FC<MessageListProps> = ({
                 data-message-id={msg.id} 
                 data-sender-id={msg.senderId}
                 data-is-seen={hasSeen}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
                 className="w-full absolute top-0 left-0"
                 style={{
                   transform: `translateY(${virtualItem.start}px)`,
@@ -154,6 +156,7 @@ export const MessageList: FC<MessageListProps> = ({
                   isYou={isYou}
                   isBot={isBot}
                   isOnline={isOnline}
+                  onMediaLoad={() => virtualizer.measure()}
                 />
               </div>
             );

@@ -9,9 +9,10 @@ interface MessageBubbleProps {
   isYou: boolean;
   isBot: boolean;
   isOnline: boolean;
+  onMediaLoad?: () => void;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, isBot, isOnline }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, isBot, isOnline, onMediaLoad }) => {
 
   return (
     <motion.div
@@ -72,6 +73,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ msg, isYou, i
                 alt="Shared media" 
                 className="max-w-full h-auto object-cover hover:scale-105 transition-transform duration-500" 
                 loading="lazy"
+                onLoad={onMediaLoad}
               />
             </div>
           ) : null}
