@@ -2,13 +2,14 @@ import React from "react";
 
 interface AvatarProps {
   src?: string;
-  name: string;
+  name?: string;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
   isOnline?: boolean;
 }
 
 const Avatar: React.FC<AvatarProps> = ({ src, name, size = "md", className = "", isOnline }) => {
+  const displayName = name?.trim() || "User";
   const sizeClasses = {
     xs: "w-6 h-6 text-[10px]",
     sm: "w-8 h-8 text-[12px]",
@@ -47,14 +48,14 @@ const Avatar: React.FC<AvatarProps> = ({ src, name, size = "md", className = "",
       {src ? (
         <img
           src={src}
-          alt={name}
+          alt={displayName}
           className={`${sizeClasses[size]} rounded-2xl object-cover shadow-lg border border-white/10`}
         />
       ) : (
         <div
-          className={`${sizeClasses[size]} ${getColor(name)} rounded-2xl flex items-center justify-center font-black text-white shadow-lg border border-white/10 uppercase tracking-tighter`}
+          className={`${sizeClasses[size]} ${getColor(displayName)} rounded-2xl flex items-center justify-center font-black text-white shadow-lg border border-white/10 uppercase tracking-tighter`}
         >
-          {getInitials(name)}
+          {getInitials(displayName)}
         </div>
       )}
       {isOnline && (
