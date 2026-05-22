@@ -29,29 +29,41 @@ export const MessageList: FC<MessageListProps> = ({
   messagesEndRef,
 }) => {
   const topSentinelRef = React.useRef<HTMLDivElement | null>(null);
+  const locallyMarkedSeenIdsRef = React.useRef(new Set<string>());
 
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => messagesContainerRef.current,
+    getItemKey: (index) => messages[index]?.id ?? index,
     estimateSize: () => 80,
+    overscan: 10,
   });
+  const virtualItems = virtualizer.getVirtualItems();
+  const observedMessageIds = virtualItems
+    .map((virtualItem) => messages[virtualItem.index]?.id)
+    .filter(Boolean)
+    .join("|");
 
   // ♾️ Infinite Scroll Observer
   React.useEffect(() => {
-    if (!topSentinelRef.current) return;
+    if (!topSentinelRef.current || !messagesContainerRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoadingMore) {
+        if (entries[0]?.isIntersecting && !isLoadingMore) {
           onLoadMore();
         }
       },
-      { threshold: 0.1 }
+      { root: messagesContainerRef.current, threshold: 0.1 }
     );
 
     observer.observe(topSentinelRef.current);
     return () => observer.disconnect();
-  }, [onLoadMore, isLoadingMore]);
+  }, [onLoadMore, isLoadingMore, messagesContainerRef]);
+
+  React.useEffect(() => {
+    locallyMarkedSeenIdsRef.current.clear();
+  }, [currentUser?.id]);
 
   // 👁️ Read Receipt Observer
   React.useEffect(() => {
@@ -67,8 +79,14 @@ export const MessageList: FC<MessageListProps> = ({
             const isAlreadySeen = entry.target.getAttribute("data-is-seen") === "true";
 
             // Only mark as seen if it's NOT our message and NOT already seen by us
-            if (msgId && senderId !== currentUser.id && !isAlreadySeen) {
+            if (
+              msgId &&
+              senderId !== currentUser.id &&
+              !isAlreadySeen &&
+              !locallyMarkedSeenIdsRef.current.has(msgId)
+            ) {
               seenIds.push(msgId);
+              locallyMarkedSeenIdsRef.current.add(msgId);
               // Mark as seen locally to avoid re-triggering before state update
               entry.target.setAttribute("data-is-seen", "true");
             }
@@ -89,7 +107,7 @@ export const MessageList: FC<MessageListProps> = ({
     messageElements.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
-  }, [messages, currentUser, onMarkAsSeen, messagesContainerRef]);
+  }, [observedMessageIds, currentUser, onMarkAsSeen, messagesContainerRef]);
 
   return (
     <div
@@ -129,7 +147,7 @@ export const MessageList: FC<MessageListProps> = ({
           position: 'relative',
         }}
       >
-          {virtualizer.getVirtualItems().map((virtualItem) => {
+          {virtualItems.map((virtualItem) => {
             const msg = messages[virtualItem.index];
             const previousMsg = virtualItem.index > 0 ? messages[virtualItem.index - 1] : null;
             

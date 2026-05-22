@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from "react";
 import type { Message } from "../types/messages";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -12,6 +12,7 @@ import { Sidebar } from "../components/chat/Sidebar";
 import { fetchRoomById } from "../services/room";
 import type { Participant } from "../types/Room";
 
+type RoomJoinedParticipant = Participant & { userId?: string };
 
 const GroupChat:React.FC = () =>  {
   const socket = useSocket();
@@ -26,9 +27,27 @@ const GroupChat:React.FC = () =>  {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const shouldScrollToBottomRef = useRef(false);
+  const scrollToBottomBehaviorRef = useRef<ScrollBehavior>("auto");
+  const preserveScrollRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const navigate = useNavigate();
   const [isLeaving, setIsLeaving] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    return distanceFromBottom < 120;
+  }, []);
+
+  const queueScrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    shouldScrollToBottomRef.current = true;
+    scrollToBottomBehaviorRef.current = behavior;
+  }, []);
 
   // 🛡️ Navigation Lock: Prevent leaving via Back button
   useEffect(() => {
@@ -55,10 +74,15 @@ const GroupChat:React.FC = () =>  {
 
     const loadData = async () => {
       try {
+        setHasMore(true);
+        preserveScrollRef.current = null;
+        shouldScrollToBottomRef.current = false;
         const [messagesData, roomData] = await Promise.all([
           fetchMessages(roomId, 50),
           fetchRoomById(roomId)
         ]);
+        preserveScrollRef.current = null;
+        queueScrollToBottom("auto");
         setMessages(messagesData.messages);
         if (messagesData.messages.length < 50) setHasMore(false);
         setParticipants(roomData.participants);
@@ -68,34 +92,33 @@ const GroupChat:React.FC = () =>  {
     };
 
     loadData();
-  }, [roomId]);
+  }, [roomId, queueScrollToBottom]);
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     if (!messagesContainerRef.current || !hasMore || isLoadingMore || messages.length === 0) return;
     
     setIsLoadingMore(true);
     const oldestMessageId = messages[0].id; 
     
     try {
+      const previousScrollHeight = messagesContainerRef.current.scrollHeight;
+      const previousScrollTop = messagesContainerRef.current.scrollTop;
       const data = await fetchMessages(roomId!, 50, oldestMessageId);
       
-      const previousScrollHeight = messagesContainerRef.current.scrollHeight;
-      
+      preserveScrollRef.current = {
+        scrollHeight: previousScrollHeight,
+        scrollTop: previousScrollTop,
+      };
       setMessages(prev => [...data.messages, ...prev]);
       
       if (data.messages.length < 50) setHasMore(false);
-
-      requestAnimationFrame(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight - previousScrollHeight;
-        }
-      });
     } catch (e) {
       console.error("Failed to fetch older messages:", e);
+      preserveScrollRef.current = null;
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [hasMore, isLoadingMore, messages, roomId]);
 useEffect(() => {
   if (!roomId || !socket) return;
 
@@ -107,12 +130,15 @@ useEffect(() => {
 
   // handlers
   const handleMessageSent = (msg: Message) => {
-  
+    queueScrollToBottom("smooth");
     setMessages(prev => [...prev, msg]);
   };
 
   const handleNewMessage = (msg: Message) => {
     // append messages from others
+    if (isNearBottom()) {
+      queueScrollToBottom("smooth");
+    }
     setMessages(prev => [...prev, msg]);
   };
 
@@ -137,12 +163,12 @@ useEffect(() => {
     socket.on("newMessage", handleNewMessage);
 
   // Status & Presence
-  socket.on("roomJoined", (data: { roomId: string; participants: any[]; onlineUsers: string[] }) => {
+  socket.on("roomJoined", (data: { roomId: string; participants: RoomJoinedParticipant[]; onlineUsers: string[] }) => {
     setOnlineUsers(new Set(data.onlineUsers));
     console.log('group chat opened ...................')
     if (data.participants) {
       console.log("roomJoined participants from server:", data.participants);
-      setParticipants(data.participants.map((p: any) => ({
+      setParticipants(data.participants.map((p) => ({
         id: p.userId || p.id,
         name: p.name,
         profilePic: p.profilePic
@@ -208,7 +234,7 @@ useEffect(() => {
       socket.off("USER_TYPING");
       socket.off("USER_PROFILE_UPDATED");
     };
-  }, [socket, roomId]);
+  }, [socket, roomId, isNearBottom, queueScrollToBottom]);
 
   const handleSendMessage = useCallback((data: { content: string; type: string; mediaUrl: string | null }) => {
     if (!socket || !roomId) return;
@@ -257,8 +283,30 @@ useEffect(() => {
   const typingNames = useMemo(() => Object.values(typingUsers), [typingUsers]);
   const typingIdsSet = useMemo(() => new Set(Object.keys(typingUsers)), [typingUsers]);
 
-useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    if (preserveScrollRef.current) {
+      const { scrollHeight, scrollTop } = preserveScrollRef.current;
+      preserveScrollRef.current = null;
+
+      requestAnimationFrame(() => {
+        if (!messagesContainerRef.current) return;
+
+        const heightDifference =
+          messagesContainerRef.current.scrollHeight - scrollHeight;
+        messagesContainerRef.current.scrollTop = scrollTop + heightDifference;
+      });
+      return;
+    }
+
+    if (shouldScrollToBottomRef.current) {
+      shouldScrollToBottomRef.current = false;
+      messagesEndRef.current?.scrollIntoView({
+        behavior: scrollToBottomBehaviorRef.current,
+      });
+    }
   }, [messages]);
   return (
     <div className="relative flex h-screen w-full bg-gray-950 text-white overflow-hidden font-sans selection:bg-purple-500/30">
