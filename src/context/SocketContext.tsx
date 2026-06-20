@@ -1,0 +1,77 @@
+import React, { createContext, useEffect, useState, ReactNode } from "react";
+import { io, Socket } from "socket.io-client";
+import axios from "axios";
+import { logout } from "../services/authService";
+
+export const SocketContext = createContext<Socket | null>(null);
+
+interface SocketProviderProps {
+  children: ReactNode;
+}
+
+export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  useEffect(() => {
+    let socketInstance: Socket | null = null;
+    let triedRefresh = false;
+
+    const connectSocket = (token: string) => {
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:5001";
+      const s = io(socketUrl, {
+        auth: { token },
+        withCredentials: true,
+        autoConnect: true,
+        reconnection: true, 
+      });
+
+      s.on("connect_error", async (err: any) => {
+        if (
+          !triedRefresh &&
+          ["TOKEN_EXPIRED", "INVALID_TOKEN", "NO_TOKEN"].includes(err.message)
+        ) {
+          triedRefresh = true;
+          
+          try {
+            const { data } = await axios.post<{accessToken:string}>(
+              `${import.meta.env.VITE_API_URL}/auth/refresh-token`,
+              {},
+              { withCredentials: true }
+            );
+        
+            localStorage.setItem("accessToken", data.accessToken);
+        
+            // reconnect with new token on the exact same instance
+            s.auth = { token: data.accessToken };
+            s.connect();
+          } catch {
+            console.error("⚠️ Refresh failed → logging out");
+            await logout();
+            localStorage.removeItem("accessToken");
+            window.location.href = "/";
+          }
+        }
+      });
+
+      socketInstance = s;
+      setSocket(s);
+      return s;
+    };
+
+    const accessToken = localStorage.getItem("accessToken");
+    if (accessToken) {
+      connectSocket(accessToken);
+    }
+
+    return () => {
+      // Disconnect cleanly only when the entire App unmounts
+      socketInstance?.disconnect();
+    };
+  }, []);
+
+  return (
+    <SocketContext.Provider value={socket}>
+      {children}
+    </SocketContext.Provider>
+  );
+};

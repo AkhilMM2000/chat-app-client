@@ -149,11 +149,13 @@ useEffect(() => {
 
   // handlers
   const handleMessageSent = (msg: Message) => {
+    console.log("[Frontend Socket] Received messageSent:", msg);
     queueScrollToBottom("smooth");
     setMessages(prev => [...prev, msg]);
   };
 
   const handleNewMessage = (msg: Message) => {
+    console.log("[Frontend Socket] Received newMessage:", msg);
     // append messages from others
     if (isNearBottom()) {
       queueScrollToBottom("smooth");
@@ -234,6 +236,7 @@ useEffect(() => {
     // This prevents users on the dashboard from "flickering" back to online in this specific room.
   });
 
+  
   // Typing Indicators
   socket.on("USER_TYPING", (data: { userId: string; name: string; status: "typing" | "idle" }) => {
     setTypingUsers(prev => {
