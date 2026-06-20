@@ -125,8 +125,27 @@ useEffect(() => {
   // (optional) ensure connection if your hook doesn't auto-connect
   if (!socket.connected) socket.connect();
 
-  // join the room (safe even if already joined; your backend de-dupes)
+  // join the room initially (safe even if already joined; your backend de-dupes)
   socket.emit("joinRoom", { roomId });
+
+  // 🔹 Connection Handlers
+  const handleConnect = () => {
+    console.log(`[Frontend Socket] Connected! Socket ID: ${socket.id}`);
+    console.log(`[Frontend Socket] Emitting joinRoom for Room: ${roomId}`);
+    socket.emit("joinRoom", { roomId });
+  };
+
+  const handleDisconnect = (reason: string) => {
+    console.warn(`[Frontend Socket] Disconnected. Reason: ${reason}`);
+  };
+
+  const handleConnectError = (error: Error) => {
+    console.error(`[Frontend Socket] Connection Error:`, error.message);
+  };
+
+  socket.on("connect", handleConnect);
+  socket.on("disconnect", handleDisconnect);
+  socket.on("connect_error", handleConnectError);
 
   // handlers
   const handleMessageSent = (msg: Message) => {
@@ -158,9 +177,15 @@ useEffect(() => {
       }));
     };
 
+    const handleSendMessageError = (error: { message: string }) => {
+      console.error("[Frontend Socket] Received Error from Server:", error.message);
+      toast.error(error.message, { icon: '🤖', duration: 5000 });
+    };
+
     socket.on("messageSent", handleMessageSent);
     socket.on("messagesSeen", handleMessagesSeen);
     socket.on("newMessage", handleNewMessage);
+    socket.on("sendMessageError", handleSendMessageError);
 
   // Status & Presence
   socket.on("roomJoined", (data: { roomId: string; participants: RoomJoinedParticipant[]; onlineUsers: string[] }) => {
@@ -224,9 +249,13 @@ useEffect(() => {
 
     // 🧹 Detailed Cleanup
     return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
       socket.off("messageSent", handleMessageSent);
       socket.off("newMessage", handleNewMessage);
       socket.off("messagesSeen", handleMessagesSeen);
+      socket.off("sendMessageError", handleSendMessageError);
       socket.off("roomJoined");
       socket.off("participantJoined");
       socket.off("userLeft");
