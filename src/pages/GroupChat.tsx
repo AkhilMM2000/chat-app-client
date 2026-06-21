@@ -13,6 +13,14 @@ import { fetchRoomById } from "../services/room";
 import type { Participant } from "../types/Room";
 
 type RoomJoinedParticipant = Participant & { userId?: string };
+type JoinRoomResponse =
+  | {
+      ok: true;
+      roomId: string;
+      participants: RoomJoinedParticipant[];
+      onlineUsers: string[];
+    }
+  | { ok: false; message: string };
 
 const GroupChat:React.FC = () =>  {
   const socket = useSocket();
@@ -33,6 +41,7 @@ const GroupChat:React.FC = () =>  {
   const navigate = useNavigate();
   const [isLeaving, setIsLeaving] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRoomJoined, setIsRoomJoined] = useState(false);
 
   const isNearBottom = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -119,24 +128,55 @@ const GroupChat:React.FC = () =>  {
       setIsLoadingMore(false);
     }
   }, [hasMore, isLoadingMore, messages, roomId]);
-useEffect(() => {
-  if (!roomId || !socket) return;
+ useEffect(() => {
+   if (!roomId || !socket) return;
 
-  // (optional) ensure connection if your hook doesn't auto-connect
-  if (!socket.connected) socket.connect();
+   let active = true;
+   setIsRoomJoined(false);
 
-  // join the room initially (safe even if already joined; your backend de-dupes)
-  socket.emit("joinRoom", { roomId });
+   const joinRoom = () => {
+     if (!active || !socket.connected) return;
 
-  // 🔹 Connection Handlers
-  const handleConnect = () => {
-    console.log(`[Frontend Socket] Connected! Socket ID: ${socket.id}`);
-    console.log(`[Frontend Socket] Emitting joinRoom for Room: ${roomId}`);
-    socket.emit("joinRoom", { roomId });
-  };
+     console.log(`[Frontend Socket] Joining Room ${roomId} with Socket ${socket.id}`);
+     socket.timeout(5000).emit(
+       "joinRoom",
+       { roomId },
+       (timeoutError: Error | null, response?: JoinRoomResponse) => {
+         if (!active) return;
 
-  const handleDisconnect = (reason: string) => {
-    console.warn(`[Frontend Socket] Disconnected. Reason: ${reason}`);
+         if (timeoutError || !response) {
+           setIsRoomJoined(false);
+           toast.error("Room connection timed out. Retrying on reconnect.");
+           return;
+         }
+
+         if (!response.ok) {
+           setIsRoomJoined(false);
+           toast.error(response.message || "Failed to join room");
+           return;
+         }
+
+         setIsRoomJoined(true);
+         setOnlineUsers(new Set(response.onlineUsers));
+         setOnlineCount(response.onlineUsers.length);
+         setParticipants(response.participants.map((participant) => ({
+           id: participant.userId || participant.id,
+           name: participant.name,
+           profilePic: participant.profilePic,
+         })));
+         console.log(`[Frontend Socket] Joined Room ${response.roomId}`);
+       },
+     );
+   };
+
+   const handleConnect = () => {
+     console.log(`[Frontend Socket] Connected! Socket ID: ${socket.id}`);
+     joinRoom();
+   };
+
+   const handleDisconnect = (reason: string) => {
+     setIsRoomJoined(false);
+     console.warn(`[Frontend Socket] Disconnected. Reason: ${reason}`);
   };
 
   const handleConnectError = (error: Error) => {
@@ -148,10 +188,10 @@ useEffect(() => {
   socket.on("connect_error", handleConnectError);
 
   // handlers
-  const handleMessageSent = (msg: Message) => {
-    console.log("[Frontend Socket] Received messageSent:", msg);
-    queueScrollToBottom("smooth");
-    setMessages(prev => [...prev, msg]);
+   const handleMessageSent = (msg: Message) => {
+     console.log("[Frontend Socket] Received messageSent:", msg);
+     queueScrollToBottom("smooth");
+     setMessages(prev => prev.some(existing => existing.id === msg.id) ? prev : [...prev, msg]);
   };
 
   const handleNewMessage = (msg: Message) => {
@@ -160,7 +200,7 @@ useEffect(() => {
     if (isNearBottom()) {
       queueScrollToBottom("smooth");
     }
-    setMessages(prev => [...prev, msg]);
+     setMessages(prev => prev.some(existing => existing.id === msg.id) ? prev : [...prev, msg]);
   };
 
     const handleMessagesSeen = (data: { roomId: string; messageIds: string[]; userId: string }) => {
@@ -189,20 +229,7 @@ useEffect(() => {
     socket.on("newMessage", handleNewMessage);
     socket.on("sendMessageError", handleSendMessageError);
 
-  // Status & Presence
-  socket.on("roomJoined", (data: { roomId: string; participants: RoomJoinedParticipant[]; onlineUsers: string[] }) => {
-    setOnlineUsers(new Set(data.onlineUsers));
-    console.log('group chat opened ...................')
-    if (data.participants) {
-      console.log("roomJoined participants from server:", data.participants);
-      setParticipants(data.participants.map((p) => ({
-        id: p.userId || p.id,
-        name: p.name,
-        profilePic: p.profilePic
-      })));
-    }
-  });
-
+   // Status & Presence
   socket.on("participantJoined", (data: { userId: string; name: string; profilePic?: string }) => {
     setParticipants(prev => {
       if (prev.find(p => p.id === data.userId)) return prev;
@@ -238,7 +265,7 @@ useEffect(() => {
 
   
   // Typing Indicators
-  socket.on("USER_TYPING", (data: { userId: string; name: string; status: "typing" | "idle" }) => {
+   socket.on("USER_TYPING", (data: { userId: string; name: string; status: "typing" | "idle" }) => {
     setTypingUsers(prev => {
       const next = { ...prev };
       if (data.status === "typing") {
@@ -248,19 +275,24 @@ useEffect(() => {
       }
       return next;
     });
-  });
+   });
 
-    // 🧹 Detailed Cleanup
-    return () => {
-      socket.off("connect", handleConnect);
+   if (socket.connected) joinRoom();
+   else socket.connect();
+
+     // 🧹 Detailed Cleanup
+     return () => {
+       active = false;
+       setIsRoomJoined(false);
+       if (socket.connected) socket.emit("leaveRoom", { roomId });
+       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("connect_error", handleConnectError);
       socket.off("messageSent", handleMessageSent);
       socket.off("newMessage", handleNewMessage);
       socket.off("messagesSeen", handleMessagesSeen);
       socket.off("sendMessageError", handleSendMessageError);
-      socket.off("roomJoined");
-      socket.off("participantJoined");
+       socket.off("participantJoined");
       socket.off("userLeft");
       socket.off("USER_STATUS_CHANGE");
       socket.off("USER_TYPING");
@@ -269,12 +301,15 @@ useEffect(() => {
   }, [socket, roomId, isNearBottom, queueScrollToBottom]);
 
   const handleSendMessage = useCallback((data: { content: string; type: string; mediaUrl: string | null }) => {
-    if (!socket || !roomId) return;
+    if (!socket || !roomId || !isRoomJoined) {
+      toast.error("Please wait until the room is connected.");
+      return;
+    }
     socket.emit("sendMessage", {
       roomId,
       ...data
     });
-  }, [socket, roomId]);
+  }, [socket, roomId, isRoomJoined]);
 
   const handleTypingStart = useCallback(() => {
     if (!socket || !roomId) return;
@@ -292,11 +327,8 @@ useEffect(() => {
     setIsLeaving(true);
     
     // Formal socket notification
-    socket.emit("leaveRoom", {
-      roomId,
-      userId: currentUser.id,
-      name: currentUser.name
-    });
+    socket.emit("leaveRoom", { roomId });
+    setIsRoomJoined(false);
 
     toast.success("Leaving room...");
     
@@ -399,11 +431,12 @@ useEffect(() => {
           <TypingIndicator names={typingNames} />
         </div>
 
-        <MessageInput 
-          onSendMessage={handleSendMessage}
-          onTypingStart={handleTypingStart}
-          onTypingStop={handleTypingStop}
-        />
+         <MessageInput
+           onSendMessage={handleSendMessage}
+           onTypingStart={handleTypingStart}
+           onTypingStop={handleTypingStop}
+           disabled={!isRoomJoined}
+         />
       </div>
     </div>
   );

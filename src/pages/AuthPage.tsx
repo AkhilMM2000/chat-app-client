@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../utils/auth";
 import GoogleAuthButton from "../components/auth/GoogleAuthButton";
 import { ShieldCheck, Mail, ArrowLeft, RefreshCw } from "lucide-react";
+import { useSocketContext } from "../hooks/useSocket";
 import Confetti from "react-confetti";
 import { useWindowSize } from "react-use"; 
 
@@ -25,6 +26,7 @@ const AuthPage: React.FC = () => {
   
   const { width, height } = useWindowSize();
   const navigate = useNavigate();
+  const { connectSocket } = useSocketContext();
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -55,6 +57,7 @@ const AuthPage: React.FC = () => {
         const res = await login(data);
         const { accessToken: jwt, name } = res.data;
         localStorage.setItem("accessToken", jwt);
+        connectSocket(jwt);
         toast.success(`Welcome back, ${name}! 🎉`);
         navigate("/room", { replace: true });
       } else {

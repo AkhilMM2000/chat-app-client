@@ -8,12 +8,14 @@ interface MessageInputProps {
   onSendMessage: (data: { content: string; type: string; mediaUrl: string | null }) => void;
   onTypingStart: () => void;
   onTypingStop: () => void;
+  disabled?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
   onTypingStart,
   onTypingStop,
+  disabled = false,
 }) => {
   const [newMessage, setNewMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -158,6 +160,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleSendMessage = async () => {
+    if (disabled) return;
     if (!newMessage.trim() && !selectedFile) return;
 
     let mediaUrl = null;
@@ -197,7 +200,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const isSendDisabled = isUploading || (!newMessage.trim() && !selectedFile);
+  const isSendDisabled = disabled || isUploading || (!newMessage.trim() && !selectedFile);
   const fileTypeLabel = (selectedFile?.type.split("/")[1] || "file").toUpperCase();
 
   return (
@@ -309,9 +312,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <textarea
               ref={inputRef}
               rows={1}
-              placeholder={isUploading ? "Uploading file..." : "Type a message..."}
+              placeholder={disabled ? "Connecting to room..." : isUploading ? "Uploading file..." : "Type a message..."}
               value={newMessage}
-              disabled={isUploading}
+              disabled={disabled || isUploading}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               className="max-h-36 min-h-11 w-full resize-none overflow-y-auto rounded-2xl border border-white/5 bg-white/5 px-4 py-3 text-sm font-medium leading-5 text-white shadow-inner outline-none transition-all placeholder:text-gray-500 focus:bg-white/[0.08] focus:ring-2 focus:ring-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
@@ -341,7 +344,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-400 transition-all hover:bg-white/5 hover:text-white active:scale-95"
-              disabled={isUploading}
+              disabled={disabled || isUploading}
               title="Attach File"
             >
               <ImageIcon size={20} />
@@ -351,7 +354,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               className={`flex h-11 w-11 items-center justify-center rounded-xl transition-all active:scale-95 ${
                 showEmojiPicker ? "bg-purple-500/10 text-purple-400" : "text-gray-400 hover:bg-white/5 hover:text-white"
               }`}
-              disabled={isUploading}
+              disabled={disabled || isUploading}
               title="Emojis"
             >
               <Smile size={20} />
@@ -359,7 +362,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <button
               onClick={handleAIButtonClick}
               className="flex h-11 w-11 items-center justify-center rounded-xl text-teal-400 transition-all hover:bg-teal-500/10 hover:text-teal-300 active:scale-95"
-              disabled={isUploading}
+              disabled={disabled || isUploading}
               title="Ask AI Assistant"
             >
               <Sparkles size={20} />

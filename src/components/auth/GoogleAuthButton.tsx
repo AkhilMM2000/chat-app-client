@@ -4,9 +4,11 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { ENDPOINTS } from "../../services/endpoints";
+import { useSocketContext } from "../../hooks/useSocket";
 
 const GoogleAuthButton = () => {
   const navigate = useNavigate();
+  const { connectSocket } = useSocketContext();
 
   const handleSuccess = async (credentialResponse: GoogleCredentialResponse) => {
     try {
@@ -27,6 +29,7 @@ const GoogleAuthButton = () => {
       const { accessToken, name } = res.data;
 
       localStorage.setItem("accessToken", accessToken);
+      connectSocket(accessToken);
 
       toast.success(`Welcome, ${name}! 🎉`);
       navigate("/room", { replace: true });

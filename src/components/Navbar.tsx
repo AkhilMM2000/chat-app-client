@@ -5,11 +5,13 @@ import { LogOut, User, Settings, ChevronDown, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Avatar from "./ui/Avatar";
 import ProfileModal from "./modals/ProfileModal";
+import { useSocketContext } from "../hooks/useSocket";
 
 const Navbar: React.FC = () => {
   const [user, setUser] = useState(getCurrentUser());
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const { disconnectSocket } = useSocketContext();
 
   const handleLogout = async () => {
 
@@ -17,6 +19,7 @@ const Navbar: React.FC = () => {
     const response = await logout();
     console.log(response,'response logot');
     if (response.success) {
+      disconnectSocket();
       localStorage.removeItem("user");
       localStorage.removeItem("accessToken");
       window.location.href = "/";

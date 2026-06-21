@@ -6,14 +6,12 @@ import RoomPreviewModal from "../components/modals/JoinRoom";
 import { fetchRoomById } from "../services/room";
 import type { GetRoomResponse } from "../types/Room";
 import toast from "react-hot-toast";
-import { useSocket } from "../hooks/useSocket";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MessageSquare, Zap, Shield } from "lucide-react";
 
 const Room: React.FC = () => {
   const navigate = useNavigate();
-  const socket = useSocket();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,35 +52,9 @@ const Room: React.FC = () => {
   };
   const handleJoinRoom = () => {
    
-    if (!roomData || !socket) {
-      console.warn("Early return: missing roomData or socket", { roomData, socket });
-      return;
-    }
-
-    if (!socket.connected) {
-      console.warn("Socket is NOT connected! Attempting to connect...");
-      socket.connect();
-    }
-
-    // Debug all incoming socket events to see if the server responds at all
-    socket.onAny((eventName, ...args) => {
-      console.log("Incoming socket event:", eventName, args);
-    });
-
-    socket.emit("joinRoom", { roomId: roomData.roomId });
-
-    socket.once("roomJoined", (data) => {
-      console.log("Room joined successfully!", data);
-      toast.success(`🎉 Joined room ${data.roomId}`);
-
-      setIsOpen(false);
-
-      navigate(`/chat/${data.roomId}`);
-    });
-
-    socket.once("joinRoomError", (err) => {
-      toast.error(err.message || "Failed to join room");
-    });
+    if (!roomData) return;
+    setIsOpen(false);
+    navigate(`/chat/${roomData.roomId}`);
   };
 
   return (
